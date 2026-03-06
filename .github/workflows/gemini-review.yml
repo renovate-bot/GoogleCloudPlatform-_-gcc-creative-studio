@@ -36,7 +36,6 @@ jobs:
     timeout-minutes: 7
     permissions:
       contents: 'read'
-      id-token: 'write'
       issues: 'write'
       pull-requests: 'write'
     steps:
@@ -47,7 +46,7 @@ jobs:
         uses: 'google-github-actions/run-gemini-cli@v0'
         id: 'gemini_pr_review'
         env:
-          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}' # Uses the default repo token to post comments
+          GITHUB_TOKEN: '${{ secrets.GITHUB_TOKEN }}'
           ISSUE_TITLE: '${{ github.event.pull_request.title || github.event.issue.title }}'
           ISSUE_BODY: '${{ github.event.pull_request.body || github.event.issue.body }}'
           PULL_REQUEST_NUMBER: '${{ github.event.pull_request.number || github.event.issue.number }}'
@@ -70,24 +69,23 @@ jobs:
                   ],
                   "includeTools": [
                     "add_comment_to_pending_review",
-                    "create_pending_pull_request_review",
-                    "get_pull_request_diff",
-                    "get_pull_request_files",
-                    "get_pull_request",
-                    "submit_pending_pull_request_review"
+                    "pull_request_read",
+                    "pull_request_review_write"
                   ],
                   "env": {
                     "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
                   }
                 }
               },
-              "coreTools": [
-                "run_shell_command(cat)",
-                "run_shell_command(echo)",
-                "run_shell_command(grep)",
-                "run_shell_command(head)",
-                "run_shell_command(tail)"
-              ]
+              "tools": {
+                "core": [
+                  "run_shell_command(cat)",
+                  "run_shell_command(echo)",
+                  "run_shell_command(grep)",
+                  "run_shell_command(head)",
+                  "run_shell_command(tail)"
+                ]
+              }
             }
           prompt: |-
             ## Role
@@ -121,9 +119,9 @@ jobs:
 
             - Retrieve the GitHub repository name from the environment variable "${REPOSITORY}".
             - Retrieve the GitHub pull request number from the environment variable "${PULL_REQUEST_NUMBER}".
-            - Use `mcp__github__get_pull_request` to get the title, body, and metadata about the pull request.
-            - Use `mcp__github__get_pull_request_files` to get the list of files that were added, removed, and changed in the pull request.
-            - Use `mcp__github__get_pull_request_diff` to get the diff from the pull request. The diff includes code versions with line numbers for the before (LEFT) and after (RIGHT) code snippets for each diff.
+            - Use `mcp__github__pull_request_read` (method: `get`) to get the title, body, and metadata about the pull request.
+            - Use `mcp__github__pull_request_read` (method: `get_files`) to get the list of files that were added, removed, and changed in the pull request.
+            - Use `mcp__github__pull_request_read` (method: `get_diff`) to get the diff from the pull request. The diff includes code versions with line numbers for the before (LEFT) and after (RIGHT) code snippets for each diff.
 
             -----
 
@@ -134,9 +132,7 @@ jobs:
             ### Step 1: Data Gathering and Analysis
 
             1. **Parse Inputs:** Ingest and parse all information from the **Input Data**
-
-            2. **Review Code:** Meticulously review the code provided returned from `mcp__github__get_pull_request_diff` according to the **Review Criteria**.
-
+            2. **Review Code:** Meticulously review the code provided returned from `mcp__github__pull_request_read` according to the **Review Criteria**.
 
             ### Step 2: Formulate Review Comments
 
@@ -213,11 +209,9 @@ jobs:
             - Comments on test files or test implementation: `🟢` (Low) or `🟡` (Medium).
 
             - Comments in markdown (.md) files: `🟢` (Low) or `🟡` (Medium).
-
             ### Step 3: Submit the Review on GitHub
 
-            1. **Create Pending Review:** Call `mcp__github__create_pending_pull_request_review`. Ignore errors like "can only have one pending review per pull request" and proceed to the next step.
-
+            1. **Create Pending Review:** Call `mcp__github__pull_request_review_write` (method: `create`). Ignore errors like "can only have one pending review per pull request" and proceed to the next step.
             2. **Add Comments and Suggestions:** For each formulated review comment, call `mcp__github__add_comment_to_pending_review`.
 
                 2a. When there is a code suggestion (preferred), structure the comment payload using this exact template:
@@ -236,7 +230,7 @@ jobs:
                     {{SEVERITY}} {{COMMENT_TEXT}}
                     </COMMENT>
 
-            3. **Submit Final Review:** Call `mcp__github__submit_pending_pull_request_review` with a summary comment. **DO NOT** approve the pull request. **DO NOT** request changes. The summary comment **MUST** use this exact markdown format:
+            3. **Submit Final Review:** Call `mcp__github__pull_request_review_write` (method: `submit_pending`) with a summary comment. **DO NOT** approve the pull request. **DO NOT** request changes. The summary comment **MUST** use this exact markdown format:
 
                 <SUMMARY>
                 ## 📋 Review Summary
